@@ -11,8 +11,8 @@ export interface PedagogyInput {
 
 export function buildPedagogyPrompt(input: PedagogyInput, errorContext?: string): string {
   const sections = {
-    systemPersona: "You are a master Instructional Designer. You turn raw research into an engaging, narrated script with a clear 4-phase learning arc (hook, buildup, aha, payoff). Your script is broken down into precise, timestamped scenes.",
-    task: `Write a video script about "${input.topic}" for an audience at the "${input.audienceLevel}" level. The target video duration is ${input.totalEstimatedDuration} seconds. Use the provided research. Ensure you include exactly all 4 arc phases.`,
+    systemPersona: "You are a viral TikTok/Shorts scriptwriter. You turn raw research into a hyper-stimulating, fast-paced 'brain rot' video script. The script must have an aggressive hook, rapid-fire buildup, a mind-blowing aha moment, and a quick payoff. Your scenes should be short (3-8 seconds) to match a highly distracted audience. Use Gen-Z/Alpha slang naturally and keep the energy at 100%.",
+    task: `Write a high-energy, fast-paced video script about "${input.topic}" for an audience at the "${input.audienceLevel}" level. The target video duration is ${input.totalEstimatedDuration} seconds. Use the provided research. Ensure you include exactly all 4 arc phases. Make the narration punchy, use slang appropriately, and split sentences aggressively.`,
     inputData: JSON.stringify({
       topic: input.topic,
       audienceLevel: input.audienceLevel,
@@ -31,7 +31,7 @@ export function buildPedagogyPrompt(input: PedagogyInput, errorContext?: string)
     {
       "id": "scene_01",
       "arcPhase": "hook" | "buildup" | "aha" | "payoff",
-      "estimatedDuration": number, // minimum 5 seconds
+      "estimatedDuration": number, // minimum 3 seconds
       "narration": string, // full spoken text
       "sentences": string[], // narration split into individual sentences for karaoke
       "onScreenText": string (optional),
@@ -56,34 +56,34 @@ export function buildPedagogyPrompt(input: PedagogyInput, errorContext?: string)
             {
               id: "scene_01",
               arcPhase: "hook",
-              estimatedDuration: 6,
-              narration: "Have you ever wondered how plants eat without mouths?",
-              sentences: ["Have you ever wondered how plants eat without mouths?"],
-              keywords: ["plants", "eating"]
+              estimatedDuration: 4,
+              narration: "Bro, plants are literally eating thin air right now and you didn't even notice. 💀",
+              sentences: ["Bro, plants are literally eating thin air right now and you didn't even notice. 💀"],
+              keywords: ["plants", "air", "eating"]
             },
             {
               id: "scene_02",
               arcPhase: "buildup",
               estimatedDuration: 6,
-              narration: "They actually use a magical green ingredient called chlorophyll to trap sunlight.",
-              sentences: ["They actually use a magical green ingredient called chlorophyll to trap sunlight."],
-              keywords: ["chlorophyll", "sunlight"]
+              narration: "Inside a leaf is a tiny solar-powered kitchen called a chloroplast. They use chlorophyll to trap sunlight like a cheat code.",
+              sentences: ["Inside a leaf is a tiny solar-powered kitchen called a chloroplast.", "They use chlorophyll to trap sunlight like a cheat code."],
+              keywords: ["chloroplast", "cheat code"]
             },
             {
               id: "scene_03",
               arcPhase: "aha",
               estimatedDuration: 6,
-              narration: "It's just like baking a cake! They mix water, air, and sunshine to make sugar.",
-              sentences: ["It's just like baking a cake!", "They mix water, air, and sunshine to make sugar."],
-              keywords: ["baking", "cake", "sugar"]
+              narration: "They mix water, air, and sunshine to craft sugar. It's literally just real-life Minecraft crafting.",
+              sentences: ["They mix water, air, and sunshine to craft sugar.", "It's literally just real-life Minecraft crafting."],
+              keywords: ["minecraft", "crafting", "sugar"]
             },
             {
               id: "scene_04",
               arcPhase: "payoff",
-              estimatedDuration: 5,
-              narration: "So every leaf you see is actually a tiny solar-powered bakery.",
-              sentences: ["So every leaf you see is actually a tiny solar-powered bakery."],
-              keywords: ["leaf", "bakery"]
+              estimatedDuration: 4,
+              narration: "So next time you see a tree, remember it's a massive solar battery carrying the whole server. W tree.",
+              sentences: ["So next time you see a tree, remember it's a massive solar battery carrying the whole server.", "W tree."],
+              keywords: ["battery", "server", "W"]
             }
           ]
         }

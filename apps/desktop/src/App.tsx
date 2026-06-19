@@ -2,7 +2,7 @@ import { LogPanel } from "./components/LogPanel";
 import { useLogStore } from "./store/logStore";
 import { GeminiService } from "gemini-service";
 import { globalLogger } from "shared";
-import { ResearchAgent, PedagogyAgent } from "pipeline";
+import { ResearchAgent, PedagogyAgent, VisualsAgent, AudioAgent } from "pipeline";
 
 function App() {
   const { addLog } = useLogStore();
@@ -48,6 +48,44 @@ function App() {
     }
   };
 
+  const testPhase4Pipeline = async () => {
+    globalLogger.info("ReactApp", "Starting Phase 4 Pipeline Test (Full Pipeline)...");
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) throw new Error("Missing VITE_GEMINI_API_KEY");
+
+      const researchAgent = new ResearchAgent(apiKey);
+      const pedagogyAgent = new PedagogyAgent(apiKey);
+      const visualsAgent = new VisualsAgent(apiKey);
+      const audioAgent = new AudioAgent(apiKey);
+
+      const topic = "Photosynthesis";
+      const audienceLevel = "middle";
+
+      globalLogger.info("ReactApp", `1/4: Running ResearchAgent on topic: ${topic}`);
+      const research = await researchAgent.execute({ topic, audienceLevel });
+
+      globalLogger.info("ReactApp", "2/4: Running PedagogyAgent...");
+      const script = await pedagogyAgent.execute({
+        topic,
+        audienceLevel,
+        videoFormat: { width: 1920, height: 1080, fps: 60 },
+        totalEstimatedDuration: 60,
+        research
+      });
+
+      globalLogger.info("ReactApp", "3/4: Running VisualsAgent...");
+      const visuals = await visualsAgent.execute({ script });
+
+      globalLogger.info("ReactApp", "4/4: Running AudioAgent...");
+      const asset = await audioAgent.execute({ visuals });
+
+      globalLogger.info("ReactApp", "Phase 4 Pipeline Success! Final AssetJSON generated.", { asset });
+    } catch (e) {
+      globalLogger.error("ReactApp", "Phase 4 Pipeline failed", { error: String(e) });
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen w-full bg-gray-50 text-gray-900">
       <div className="flex-1 p-8">
@@ -80,6 +118,13 @@ function App() {
             className="px-4 py-2 bg-green-600 text-white rounded shadow hover:bg-green-700 transition"
           >
             Test Pipeline (Phase 3)
+          </button>
+
+          <button 
+            onClick={testPhase4Pipeline}
+            className="px-4 py-2 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700 transition"
+          >
+            Test Pipeline (Phase 4)
           </button>
         </div>
       </div>

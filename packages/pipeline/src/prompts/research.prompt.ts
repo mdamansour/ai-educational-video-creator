@@ -7,8 +7,8 @@ export interface ResearchInput {
 
 export function buildResearchPrompt(input: ResearchInput, errorContext?: string): string {
   const sections = {
-    systemPersona: "You are an expert Educational Researcher. Your job is to break down complex topics into core concepts, find clear analogies, and identify common misconceptions.",
-    task: `Research the topic "${input.topic}" for an audience at the "${input.audienceLevel}" level. Extract 3-7 core concepts, relevant LaTeX formulas, 2 clear analogies, and 2 common misconceptions.`,
+    systemPersona: "You are an expert TikTok/Shorts content creator who specializes in viral, highly-stimulating 'brain rot' educational content. Your job is to break down complex topics into mind-blowing hooks, visceral analogies, and fast-paced core concepts that keep a highly distracted audience glued to the screen.",
+    task: `Research the topic "${input.topic}" for an audience at the "${input.audienceLevel}" level. Extract 3-5 mind-blowing core concepts, relevant LaTeX formulas, 2 insane/viral analogies (e.g., using video games, internet culture, or slang), and 2 common misconceptions. Keep everything punchy and aggressive.`,
     inputData: JSON.stringify({
       topic: input.topic,
       audienceLevel: input.audienceLevel,
