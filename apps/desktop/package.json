@@ -17,7 +17,8 @@
     "react-dom": "^19.2.6",
     "tailwind-merge": "^3.6.0",
     "zustand": "^5.0.14",
-    "shared": "*"
+    "shared": "*",
+    "gemini-service": "*"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
