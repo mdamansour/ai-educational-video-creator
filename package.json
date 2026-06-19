@@ -1,0 +1,25 @@
+{
+  "name": "ai-tutor",
+  "version": "1.0.0",
+  "description": "AI Educational Content Creation Tool",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w apps/desktop\" \"npm run dev -w motion-canvas-workspace\"",
+    "build": "npm run build -ws",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "motion-canvas-workspace"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "chokidar": "^3.5.3",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "typescript": "^5.2.2"
+  }
+}

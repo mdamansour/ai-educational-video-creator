@@ -1,0 +1,8 @@
+node_modules
+dist
+dist-electron
+out
+.env
+.logs/
+*.log
+.DS_Store

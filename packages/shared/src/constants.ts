@@ -1,0 +1,10 @@
+export const CONSTANTS = {
+  DEFAULT_VIDEO_FORMAT: "youtube",
+  DEFAULT_AUDIENCE_LEVEL: "high_school",
+  DEFAULT_GEMINI_MODEL: "gemini-flash-lite-latest",
+  MAX_RETRIES: 3,
+  SILENCE_THRESHOLD_DB: -40,
+  SILENCE_DURATION_MS: 3000,
+  BGM_DUCKING_DB: -20,
+  BGM_NORMAL_DB: -12,
+};

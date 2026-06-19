@@ -1,0 +1,9 @@
+feat(core): complete Phase 1 foundation, tooling, and logging system
+
+- Monorepo Setup: Initialized npm workspaces structure mapping desktop, shared, gemini-service, pipeline, mc-runtime, and audio-engine.
+- Desktop Shell: Configured Vite, React, and Tailwind CSS for the main frontend application.
+- Shared Package: Defined zero-dependency TypeScript contracts including VideoFormat, ScriptJSON, ScenePlanJSON, and LogEntry.
+- Logging Subsystem: Built a non-blocking Logger class with an async queue and implemented a persistent LogPanel UI powered by a Zustand logStore for real-time observability.
+- Dependency Stabilization: Resolved Vite resolution and React mounting errors by implementing clean installation routines and explicit PostCSS configurations.
+
+Closes Phase 1 of the V-Cycle implementation plan.

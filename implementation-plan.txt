@@ -1,0 +1,766 @@
+AI-Powered Educational Content Creation Tool — v3 (FINAL ARCHITECTURE)
+V-Cycle · Requirements · Phased Build Plan
+Methodology: V-Model — each phase fully built, tested, and human-verified before the next begins. Do not start implementation until explicitly instructed. Updated: 2026-06-19
+
+0. CONFIRMED DESIGN DECISIONS
+Decision	Choice
+Karaoke timing	Time-based (estimatedDuration / sentenceCount)
+Subtitles	Exported as .srt sidecar (burn-in optional)
+BGM	5 bundled royalty-free tracks + custom file import
+Project format	Workspace folder (human-readable, debuggable)
+Logging	Structured UI log panel + JSONL session file
+MC Editor	Natively integrated as a core interactive loop
+1. COMPLETE USER JOURNEY (9 Steps)
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ STEP 1  │ Topic + Audience Level + Video Format / Resolution             │
+├──────────────────────────────────────────────────────────────────────────┤
+│ STEP 2  │ AI Research          [ResearchAgent → Gemini]                  │
+│         │ Concepts · Definitions · LaTeX · Analogies · Misconceptions    │
+├──────────────────────────────────────────────────────────────────────────┤
+│ STEP 3  │ Scenario Design      [VisualDirectorAgent → Gemini]            │
+│         │ Per-scene visual type · ScenePlanJSON generated                │
+├──────────────────────────────────────────────────────────────────────────┤
+│ STEP 4  │ Script Review & Edit [PedagogyAgent → Gemini]                  │
+│         │ hook→build-up→aha→payoff arc · User edits narration text       │
+├──────────────────────────────────────────────────────────────────────────┤
+│ STEP 5  │ 🎙 Voice Recording    [MANUAL — Karaoke Studio]                │
+│         │ Scene-by-scene · Script highlighted in sync · VU meter         │
+├──────────────────────────────────────────────────────────────────────────┤
+│ STEP 6  │ 🎨 Motion Canvas Editor [INTERACTIVE — Core Loop]             │
+│         │ AI generates .tsx → MC preview → User edits → AI reads back   │
+│         │ Monaco editor · Live MC preview · SceneReadBack feedback loop  │
+├──────────────────────────────────────────────────────────────────────────┤
+│ STEP 7  │ Audio Mixing          [Auto: Mixer + Ducker]                   │
+│         │ Narration + BGM (bundled or custom) + SFX · Auto-ducking       │
+├──────────────────────────────────────────────────────────────────────────┤
+│ STEP 8  │ Render                [RenderAgent → MC headless]              │
+│         │ project.ts stitched · MC renders frames → video               │
+├──────────────────────────────────────────────────────────────────────────┤
+│ STEP 9  │ Export                [FFmpeg]                                 │
+│         │ .mp4 / .webm · .srt sidecar · Format-aware resolution         │
+└──────────────────────────────────────────────────────────────────────────┘
+The Log Panel is always visible as a persistent bottom/side drawer across all steps. The MC Editor (Step 6) is a first-class interactive loop, not a one-shot generation step.
+
+2. SYSTEM REQUIREMENTS SPECIFICATION (SRS v3)
+Group A — Topic, Audience & Format
+ID	Requirement	Priority
+FR-A01	User enters topic + audience level (Middle / High School / University / Graduate)	MUST
+FR-A02	Format presets: YouTube (1920×1080, 16:9, 60fps) · Shorts/Reels (1080×1920, 9:16, 30fps) · TikTok (1080×1920, 9:16, 30fps) · Square (1080×1080, 1:1, 30fps) · Custom (manual W×H×FPS)	MUST
+FR-A03	Format propagates to MC canvas, render output, FFmpeg flags, and UI aspect ratio preview	MUST
+FR-A04	System lists Gemini models via GET /v1beta/models, pre-selects gemini-flash-lite-latest	MUST
+FR-A05	User can override model from a dropdown	SHOULD
+Group B — AI Research
+ID	Requirement	Priority
+FR-B01	ResearchAgent produces: summary, 3–7 concepts, definitions, LaTeX formulas, 2 analogies, 2 misconceptions	MUST
+FR-B02	All Gemini outputs validated with Zod; failures trigger retry with error feedback injected into next prompt	MUST
+FR-B03	Research output shown to user and editable before proceeding	SHOULD
+Group C — Scenario & Script
+ID	Requirement	Priority
+FR-C01	PedagogyAgent outputs ScriptJSON with 4 arc phases, timestamped scenes, sentences array	MUST
+FR-C02	VisualDirectorAgent assigns a VisualType (strict enum) to each scene	MUST
+FR-C03	User can edit narration text, reorder scenes, adjust estimated duration	MUST
+FR-C04	Changes to ScriptJSON persist immediately to workspace folder	MUST
+Group D — Voice Recording (Karaoke Studio)
+ID	Requirement	Priority
+FR-D01	Scene-by-scene recording with Prev / Next / Re-record navigation	MUST
+FR-D02	Karaoke display: current sentence highlighted; advances every estimatedDuration / sentenceCount seconds	MUST
+FR-D03	Real-time VU meter (dBFS) + live waveform canvas	MUST
+FR-D04	Each scene → independent .wav file in workspace	MUST
+FR-D05	Playback of recorded take before advancing	MUST
+FR-D06	Re-record discards current WAV and resets mic	MUST
+FR-D07	Silence warning if no audio > –40 dBFS detected after 3 s	SHOULD
+Group E — Motion Canvas Editor (Interactive Loop — Core Architecture)
+ID	Requirement	Priority
+FR-E01	CodeGenAgent generates one .tsx scene file per ScenePlan; saved to mc-workspace/src/scenes/	MUST
+FR-E02	MC dev server runs as a subprocess; its web UI is embedded in the app via Electron BrowserView	MUST
+FR-E03	Monaco Editor panel shows the .tsx source of the currently selected scene; user can edit inline	MUST
+FR-E04	File watcher (chokidar) monitors mc-workspace/src/scenes/; any save triggers MC hot-reload	MUST
+FR-E05	After user edits a .tsx, a "Sync to AI" button triggers SceneReadBackAgent	MUST
+FR-E06	SceneReadBackAgent reads the modified .tsx from disk and asks Gemini to extract: visual description, components used, animation logic, color palette	MUST
+FR-E07	Extracted understanding is stored back into ScenePlanJSON (overwriting the AI's prior plan for that scene)	MUST
+FR-E08	Updated ScenePlan is displayed alongside the scene so user can confirm the AI understood correctly	MUST
+FR-E09	User can type a natural-language instruction ("change the color to blue", "add a bounce effect") → AI modifies the .tsx file → file is saved → MC hot-reloads	MUST
+FR-E10	CodeReviewAgent re-runs tsc --noEmit after every AI-generated or AI-modified file	MUST
+FR-E11	The AI's working memory for each scene is always the ACTUAL file on disk, never a cached string	MUST
+FR-E12	User can lock a scene (prevent AI from touching it)	SHOULD
+Group F — Audio Mixing
+ID	Requirement	Priority
+FR-F01	BGM: 5 bundled royalty-free tracks selectable per project; user can import a custom audio file	MUST
+FR-F02	Auto-ducking: BGM drops to –20 dBFS when narration is active; returns to –12 dBFS in gaps	MUST
+FR-F03	Per-scene SFX attachment (whoosh, chime, etc.)	SHOULD
+FR-F04	Final mixed audio exported as .wav and .aac	MUST
+FR-F05	BGM level slider (user-adjustable before final mix)	SHOULD
+Group G — Render & Export
+ID	Requirement	Priority
+FR-G01	RenderAgent stitches project.ts with all approved scenes, respecting canvas format	MUST
+FR-G02	MC renders frames headlessly (Node-based renderer; Puppeteer fallback)	MUST
+FR-G03	FFmpeg merges video frames + mixed audio → .mp4 (H.264+AAC) and .webm (VP9+Opus)	MUST
+FR-G04	Output resolution and aspect ratio match format chosen in Step 1	MUST
+FR-G05	.srt subtitle file generated from narration sentences with timestamps	MUST
+FR-G06	Optional: burn subtitles into video via FFmpeg subtitles filter	SHOULD
+FR-G07	"Open in Explorer/Finder" button after successful export	MUST
+Group H — Logging System
+ID	Requirement	Priority
+FR-H01	Every system event (agent calls, retries, file writes, errors, IPC messages) emits a structured log entry	MUST
+FR-H02	Log entry schema: { timestamp, level, source, message, metadata? }	MUST
+FR-H03	Log levels: DEBUG · INFO · WARN · ERROR · FATAL	MUST
+FR-H04	Log Panel UI: persistent drawer visible on all steps; color-coded by level; scrollable; searchable	MUST
+FR-H05	"Copy All Logs" button copies full session log as JSON to clipboard	MUST
+FR-H06	"Copy Last Error" button copies only the most recent ERROR/FATAL entries	MUST
+FR-H07	Session log written to <workspace>/.logs/session_<ISO-timestamp>.jsonl	MUST
+FR-H08	Log Panel shows: timestamp · level badge · source label · message; expandable metadata	MUST
+FR-H09	Failed Gemini prompt + raw response saved verbatim in log metadata for full traceability	MUST
+FR-H10	Log level filter: user can toggle DEBUG / INFO / WARN / ERROR display	SHOULD
+Non-Functional Requirements
+ID	Requirement	Metric
+NFR-01	Each Gemini agent call ≤ 30 s (p95)	≤ 30 s
+NFR-02	Adding a new pipeline agent: 1 new file + 1 config line	< 1 h
+NFR-03	Any agent failure retryable without full pipeline restart	0 forced restarts
+NFR-04	Each module ≤ 300 LoC; full JSDoc on public APIs	100%
+NFR-05	API key stored in OS keychain or .env; never in source	Zero plaintext keys
+NFR-06	Non-technical user completes a 3-min YouTube video in ≤ 45 min (first run)	≤ 45 min
+NFR-07	Runs on Windows 10+, macOS 13+, Ubuntu 22+	All three
+NFR-08	Log writes never block the main thread (async queue)	0 UI freezes from logging
+3. ARCHITECTURE
+3.1 High-Level System Architecture
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                           ELECTRON SHELL                                 │
+│  ┌────────────────────────────────────────────────────────────────────┐  │
+│  │                       REACT UI (Renderer)                          │  │
+│  │                                                                    │  │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │  │
+│  │  │  9-Step Wizard  │  Script Editor  │  Karaoke Studio          │  │  │
+│  │  │  Model Selector │  Format Picker  │  Audio Mixer             │  │  │
+│  │  └──────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                    │  │
+│  │  ┌────────────────────────────┐  ┌──────────────────────────────┐  │  │
+│  │  │   MONACO EDITOR PANEL      │  │   MC PREVIEW (BrowserView)   │  │  │
+│  │  │   .tsx source · editable   │  │   localhost:9000 (MC dev srv)│  │  │
+│  │  │   "Sync to AI" button      │  │   Hot-reloads on file save   │  │  │
+│  │  └────────────────────────────┘  └──────────────────────────────┘  │  │
+│  │                                                                    │  │
+│  │  ┌────────────────────────────────────────────────────────────────┐ │  │
+│  │  │  LOG PANEL  (always visible)                                   │ │  │
+│  │  │  [TIMESTAMP] [LEVEL] [SOURCE] message …  [Copy All] [Copy Err]│ │  │
+│  │  └────────────────────────────────────────────────────────────────┘ │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                          │  IPC Bridge (contextBridge)                   │
+│  ┌───────────────────────▼──────────────────────────────────────────────┐  │
+│  │                    MAIN PROCESS (Node)                               │  │
+│  │                                                                      │  │
+│  │  ┌──────────────────────────────────────────────────────────────┐   │  │
+│  │  │              Pipeline Orchestrator (EventEmitter)            │   │  │
+│  │  │  Step events → IPC → React store → UI re-renders            │   │  │
+│  │  └──────────────────────────────────────────────────────────────┘   │  │
+│  │                                                                      │  │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌─────────────┐   │  │
+│  │  │ Research   │  │ Pedagogy   │  │ VisualDir  │  │ CodeGen     │   │  │
+│  │  │ Agent      │  │ Agent      │  │ Agent      │  │ Agent       │   │  │
+│  │  └────────────┘  └────────────┘  └────────────┘  └─────────────┘   │  │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────────────────────┐    │  │
+│  │  │ CodeReview │  │ SceneRead  │  │      Render Agent          │    │  │
+│  │  │ Agent      │  │ Back Agent │  │ (MC project.ts + render)   │    │  │
+│  │  └────────────┘  └────────────┘  └────────────────────────────┘    │  │
+│  │                                                                      │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │  │
+│  │  │ GeminiService│  │ AudioEngine  │  │ MCEditorBridge           │  │  │
+│  │  │ (singleton)  │  │ Rec·Mix·Duck │  │ DevServer·FileWatcher    │  │  │
+│  │  └──────────────┘  └──────────────┘  └──────────────────────────┘  │  │
+│  │                                                                      │  │
+│  │  ┌──────────────────────────────────────────────────────────────┐   │  │
+│  │  │  Logger (async queue → IPC → Log Panel + JSONL file)         │   │  │
+│  │  └──────────────────────────────────────────────────────────────┘   │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────┘
+         │              │              │               │
+    Gemini API     File System     FFmpeg CLI    MC Dev Server
+    (HTTPS)      (workspace/)    (audio/video)  (localhost:9000)
+3.2 Monorepo Directory Structure
+
+ai-tutor/
+│
+├── apps/
+│   └── desktop/                             ← Electron + Vite + React + TS
+│       ├── electron/
+│       │   ├── main.ts                      ← Electron main entry
+│       │   ├── preload.ts                   ← contextBridge IPC surface
+│       │   └── ipc/
+│       │       ├── pipeline.ipc.ts
+│       │       ├── audio.ipc.ts
+│       │       ├── editor.ipc.ts            ← MC editor + file watcher IPC
+│       │       ├── logger.ipc.ts            ← Log streaming to renderer
+│       │       └── fs.ipc.ts
+│       │
+│       └── src/
+│           ├── App.tsx
+│           ├── store/
+│           │   ├── pipelineStore.ts         ← Zustand: pipeline state
+│           │   └── logStore.ts              ← Zustand: log entries
+│           │
+│           ├── pages/
+│           │   ├── Step1_TopicFormat.tsx
+│           │   ├── Step2_Research.tsx
+│           │   ├── Step3_Scenario.tsx
+│           │   ├── Step4_Script.tsx
+│           │   ├── Step5_KaraokeRecording.tsx
+│           │   ├── Step6_MCEditor.tsx       ← The interactive MC editor step
+│           │   ├── Step7_AudioMix.tsx
+│           │   ├── Step8_Render.tsx
+│           │   └── Step9_Export.tsx
+│           │
+│           └── components/
+│               ├── StepWizard/
+│               ├── FormatPicker/            ← Preset cards + custom W×H×FPS
+│               ├── ModelSelector/
+│               ├── ScriptEditor/
+│               ├── KaraokeDisplay/          ← Sentence highlighter
+│               ├── VUMeter/
+│               ├── WaveformViewer/
+│               ├── MCEditorPanel/           ← Monaco + BrowserView split pane
+│               │   ├── MonacoPane.tsx       ← .tsx source editor
+│               │   ├── MCPreviewPane.tsx    ← BrowserView wrapper
+│               │   ├── SceneSidebar.tsx     ← Scene list + lock toggle
+│               │   ├── SyncToAIButton.tsx   ← Triggers SceneReadBackAgent
+│               │   └── AIInstructionBar.tsx ← Natural language → code edit
+│               ├── AudioMixer/
+│               └── LogPanel/               ← Always visible
+│                   ├── LogPanel.tsx
+│                   ├── LogEntry.tsx
+│                   └── LogToolbar.tsx       ← Filter + Copy All + Copy Error
+│
+├── packages/
+│   │
+│   ├── shared/                              ← Zero-dependency types + utils
+│   │   └── src/
+│   │       ├── types/
+│   │       │   ├── VideoFormat.ts
+│   │       │   ├── ScriptJSON.ts
+│   │       │   ├── ScenePlanJSON.ts
+│   │       │   ├── AgentResult.ts
+│   │       │   ├── PipelineState.ts
+│   │       │   └── LogEntry.ts             ← { timestamp, level, source, message, metadata }
+│   │       ├── constants.ts
+│   │       └── logger.ts                   ← Logger class (async queue, IPC emit)
+│   │
+│   ├── gemini-service/                      ← Isolated API wrapper
+│   │   └── src/
+│   │       ├── GeminiService.ts
+│   │       ├── ModelSelector.ts
+│   │       ├── PromptBuilder.ts            ← 8-section prompt template builder
+│   │       └── types.ts
+│   │
+│   ├── pipeline/                            ← Pure Node; no Electron dep
+│   │   └── src/
+│   │       ├── orchestrator.ts
+│   │       ├── agents/
+│   │       │   ├── BaseAgent.ts            ← withRetry + Zod validation built-in
+│   │       │   ├── ResearchAgent.ts
+│   │       │   ├── PedagogyAgent.ts
+│   │       │   ├── VisualDirectorAgent.ts
+│   │       │   ├── CodeGenAgent.ts
+│   │       │   ├── CodeReviewAgent.ts      ← tsc --noEmit + Gemini fix loop
+│   │       │   ├── SceneReadBackAgent.ts   ← Reads .tsx → extracts semantic plan
+│   │       │   └── RenderAgent.ts
+│   │       ├── prompts/                    ← All prompt templates isolated here
+│   │       │   ├── PromptTemplate.ts       ← Base 8-section builder
+│   │       │   ├── research.prompt.ts
+│   │       │   ├── pedagogy.prompt.ts
+│   │       │   ├── visualDirector.prompt.ts
+│   │       │   ├── codeGen.prompt.ts
+│   │       │   ├── codeReview.prompt.ts
+│   │       │   └── sceneReadBack.prompt.ts
+│   │       └── schemas/
+│   │           ├── ScriptJSON.schema.ts    ← Zod schemas
+│   │           └── ScenePlanJSON.schema.ts
+│   │
+│   ├── mc-runtime/                          ← MC workspace manager
+│   │   └── src/
+│   │       ├── MCEditorBridge.ts           ← Owns dev server lifecycle
+│   │       ├── MCDevServer.ts              ← spawn/kill `npm run dev`
+│   │       ├── MCRenderTrigger.ts          ← Node headless / Puppeteer fallback
+│   │       ├── MCProjectManager.ts         ← Writes project.ts
+│   │       ├── SceneFileWriter.ts          ← Writes .tsx to disk
+│   │       └── SceneFileWatcher.ts         ← chokidar watcher → events
+│   │
+│   └── audio-engine/
+│       └── src/
+│           ├── Recorder.ts                 ← MediaRecorder + WAV export
+│           ├── Mixer.ts
+│           ├── Ducker.ts
+│           ├── SRTExporter.ts              ← Generates .srt from ScriptJSON
+│           └── FFmpegExporter.ts           ← Merges video + audio
+│
+├── motion-canvas-workspace/                 ← Separate MC package
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── project.ts                          ← Auto-generated by RenderAgent
+│   └── src/
+│       └── scenes/                         ← Auto-generated + user-edited .tsx
+│
+├── assets/
+│   ├── bgm/                                ← 5 bundled royalty-free tracks
+│   │   ├── calm_study.mp3
+│   │   ├── upbeat_explainer.mp3
+│   │   ├── minimal_ambient.mp3
+│   │   ├── cinematic_build.mp3
+│   │   └── gentle_piano.mp3
+│   └── sfx/
+│       ├── whoosh.wav
+│       ├── chime.wav
+│       └── pop.wav
+│
+├── package.json                            ← Root monorepo (npm workspaces)
+├── tsconfig.base.json
+└── .env.example                            ← GEMINI_API_KEY=<never commit>
+4. CORE SUBSYSTEM DESIGNS
+4.1 Logging System
+
+Event Source (any module)
+        │
+        ▼
+Logger.log(level, source, message, metadata?)
+        │
+        ├──→ Async in-memory queue (non-blocking)
+        │           │
+        │           ├──→ IPC emit → renderer → logStore (Zustand) → LogPanel UI
+        │           │
+        │           └──→ Append to <workspace>/.logs/session_<ISO>.jsonl
+        │
+        └── (on ERROR/FATAL) → also appended to lastErrors[] for "Copy Last Error"
+LogEntry schema:
+
+typescript
+
+interface LogEntry {
+  id: string;                    // uuid
+  timestamp: string;             // ISO-8601
+  level: "DEBUG" | "INFO" | "WARN" | "ERROR" | "FATAL";
+  source: string;                // e.g. "ResearchAgent", "MCDevServer", "Recorder"
+  message: string;
+  metadata?: {
+    prompt?: string;             // Full prompt sent to Gemini (on failure)
+    rawResponse?: string;        // Raw LLM response (on failure)
+    zodErrors?: string[];        // Validation errors
+    filePath?: string;
+    durationMs?: number;
+    attemptNumber?: number;
+    [key: string]: unknown;
+  };
+}
+LogPanel UI:
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  LOGS  [▼ DEBUG] [▼ INFO] [▼ WARN] [▼ ERROR]  🔍 filter...          │
+│        [Copy All Logs]  [Copy Last Error]  [Clear]                   │
+├──────────────────────────────────────────────────────────────────────┤
+│  19:03:12  INFO   GeminiService     Listing available models...      │
+│  19:03:13  INFO   GeminiService     Selected: gemini-flash-lite-lat… │
+│  19:03:14  INFO   ResearchAgent     Attempt 1/3 — sending prompt…   │
+│  19:03:22  INFO   ResearchAgent     ✓ Valid response (8.2 s)         │
+│  19:03:23  WARN   PedagogyAgent     Attempt 1 failed: missing field  │
+│  19:03:23  INFO   PedagogyAgent     Retrying with error context…    │
+│  19:03:31  INFO   PedagogyAgent     ✓ Valid response (8.1 s)         │
+│  19:03:32  ERROR  CodeReviewAgent   tsc: error TS2304 'Rect' not…   │
+│                   ▶ expand metadata (prompt · raw response · fix)    │
+└──────────────────────────────────────────────────────────────────────┘
+4.2 Motion Canvas Editor — Interactive Feedback Loop
+This is not a one-shot code generation. It is a stateful, bidirectional loop:
+
+
+┌─────────────────────────────────────────────────────────────┐
+│                    MC EDITOR STEP (Step 6)                  │
+│                                                             │
+│  ┌─────────────────────┐   ┌─────────────────────────────┐ │
+│  │  SCENE SIDEBAR      │   │  SPLIT PANE                 │ │
+│  │                     │   │                             │ │
+│  │  ● scene_01  🔒?    │   │  LEFT: Monaco Editor        │ │
+│  │  ● scene_02  ✎      │   │  .tsx source — editable     │ │
+│  │  ● scene_03  ✎      │   │  Saved on Ctrl+S → hot-rel  │ │
+│  │  ● scene_04  🔒     │   │                             │ │
+│  │                     │   │  RIGHT: MC Preview           │ │
+│  │  [+ New Scene]      │   │  BrowserView → localhost:90  │ │
+│  │  [Generate All]     │   │  Live animation preview      │ │
+│  └─────────────────────┘   └─────────────────────────────┘ │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │  AI INSTRUCTION BAR                                     ││
+│  │  💬 "make the circle red and add a bounce at the end"   ││
+│  │                                          [Send to AI]   ││
+│  └─────────────────────────────────────────────────────────┘│
+│                                                             │
+│  [↑ Sync to AI — read this file]   [✓ Approve & Lock]      │
+└─────────────────────────────────────────────────────────────┘
+Feedback Loop State Machine:
+
+
+AI_GENERATED
+     │
+     ▼
+[User views MC preview]
+     │
+     ├── Happy → [Approve & Lock] ──────────────────────→ LOCKED
+     │
+     ├── Edits Monaco source manually
+     │         │
+     │         ▼
+     │    File saved → chokidar detects → MC hot-reloads
+     │         │
+     │         └── [Sync to AI] → SceneReadBackAgent reads .tsx
+     │                                   │
+     │                                   ▼
+     │                          Gemini extracts plan
+     │                                   │
+     │                                   ▼
+     │                          ScenePlan updated in UI
+     │                          "AI understood: circle morphs into..."
+     │                                   │
+     │                          User confirms → LOCKED
+     │                          User corrects → loop again
+     │
+     └── Types instruction in AIInstructionBar
+               │
+               ▼
+         SceneReadBackAgent reads CURRENT .tsx from disk
+         (always ground truth, never cached)
+               │
+               ▼
+         CodeGenAgent generates a PATCH (not a full rewrite)
+               │
+               ▼
+         CodeReviewAgent: tsc --noEmit passes?
+               │
+         Yes → file written → hot-reload → user sees result
+         No  → retry with compiler error → up to 3×
+               │
+               ▼
+         [User reviews] → loop back to top
+Key Invariant (FR-E11):
+
+The AI NEVER operates on a cached string. Before any AI action on a scene, the system reads the .tsx file from disk. This is the single source of truth.
+
+4.3 LLM Prompt Engineering Strategy
+Mandatory 8-Section Prompt Template
+
+1. [SYSTEM PERSONA]
+   "You are a Motion Canvas v3 animation expert. You write only
+    syntactically correct TypeScript using the Motion Canvas API.
+    You do NOT invent API methods. You do NOT add explanations."
+2. [TASK — one imperative sentence]
+   "Generate a Motion Canvas scene for the following input."
+3. [INPUT DATA — clearly labeled JSON]
+   "=== SCENE PLAN ===\n<json>"
+4. [OUTPUT CONTRACT — exact schema inline]
+   "Return ONLY a JSON object matching this exact structure:
+    { sceneCode: string, components: string[] }"
+5. [FEW-SHOT EXAMPLES — 1 or 2 complete pairs]
+   "=== EXAMPLE INPUT ===\n...\n=== EXAMPLE OUTPUT ===\n..."
+6. [NEGATIVE EXAMPLES]
+   "=== DO NOT DO THIS ===
+    Bad: using `scene.add()` — this API does not exist in MC v3.
+    Bad: adding markdown fences around the JSON output.
+    Bad: adding any key not in the output contract."
+7. [CHAIN-OF-THOUGHT CUE]
+   "Think step by step about which MC components match the visual type,
+    then write the code, then verify imports match components used."
+8. [FINAL INSTRUCTION]
+   "Return ONLY valid JSON. No markdown. No extra keys. No commentary."
+Validation + Retry Loop
+
+Gemini response
+      │
+      ▼
+  safeJsonParse()   ──── fail ──→  inject parse error → retry (max 3)
+      │
+      ▼
+  zodSchema.parse() ──── fail ──→  inject Zod errors  → retry (max 3)
+      │
+      ▼
+  domainValidate()  ──── fail ──→  inject domain rule → retry (max 3)
+      │
+      ▼
+  AgentOutput ✓ (fully typed, guaranteed valid)
+              │
+              └──→ full prompt + response logged at DEBUG level always
+                   on failure: logged at ERROR with all metadata
+Per-Agent Hallucination Guards
+Agent	Risk	Guard
+ResearchAgent	Fabricating facts/formulas	"Do NOT invent. Flag uncertainty with 'commonly believed'."
+PedagogyAgent	Missing arc phases / zero durations	All 4 phases required in Zod; duration >= 5 enforced
+VisualDirectorAgent	Non-enum visual types	Full enum embedded verbatim in prompt; any deviation → retry
+CodeGenAgent	Invalid MC v3 API calls	MC v3 API reference + 2 full examples in few-shot; forbidden method list in negative examples
+CodeReviewAgent	"Fixing" by deleting code	Instructed to produce minimal diffs; never remove entire functions
+SceneReadBackAgent	Misunderstanding user edits	Reads raw .tsx → produces structured JSON; user confirms before write
+5. KEY DATA CONTRACTS
+ScriptJSON
+typescript
+
+interface ScriptJSON {
+  topic: string;
+  audienceLevel: "middle" | "high_school" | "university" | "graduate";
+  videoFormat: FormatPreset;
+  totalEstimatedDuration: number;      // seconds
+  scenes: ScriptScene[];
+}
+interface ScriptScene {
+  id: string;                          // "scene_01", ...
+  arcPhase: "hook" | "buildup" | "aha" | "payoff";
+  estimatedDuration: number;           // seconds, ≥ 5
+  narration: string;                   // full spoken text
+  sentences: string[];                 // split narration for karaoke
+  onScreenText?: string;
+  latexFormula?: string;
+  keywords: string[];
+  locked?: boolean;                    // user-locked in MC editor
+}
+ScenePlanJSON
+typescript
+
+interface ScenePlanJSON {
+  videoFormat: VideoFormat;
+  scenes: ScenePlan[];
+}
+interface ScenePlan {
+  sceneId: string;
+  visualType: VisualType;              // strict enum
+  sourceOfTruth: "ai_generated" | "user_edited" | "ai_readback";
+  lastReadFromDisk?: string;           // ISO timestamp of last SceneReadBackAgent run
+  motionCanvasHints: {
+    components: MCComponent[];         // strict enum
+    animationStyle: AnimationStyle;
+    colorPalette: string[];
+    cameraMovement?: CameraMovement;
+  };
+  estimatedDuration: number;
+  scriptRef: string;
+  locked: boolean;
+}
+6. PHASED BUILD PLAN
+Rule: No phase starts until the previous phase gate is green (tests pass + human verification).
+
+PHASE 1 — Foundation & Tooling
+Scope: Monorepo compiles. Electron opens. Shared types importable. Logger works.
+
+
+Build
+  ├── npm workspaces monorepo init
+  ├── Electron + Vite + React shell (blank window + DevTools)
+  ├── packages/shared: all types, VideoFormat presets, LogEntry, constants
+  ├── Logger (async queue + IPC emit + JSONL writer stub)
+  ├── LogPanel UI component (renders from logStore)
+  ├── .env.example + keychain integration skeleton
+  └── MC workspace (blank project.ts + hello-world scene)
+Unit Tests
+  ├── VideoFormat presets: correct W×H×FPS for each preset
+  ├── LogEntry: timestamp is valid ISO, level is valid enum
+  ├── Logger: queued messages arrive in order; never blocks caller
+  └── All shared types compile with tsc
+Manual Verification
+  ├── Electron window opens
+  ├── LogPanel visible, shows test log entries
+  └── .env GEMINI_API_KEY loads into process.env without leaking to renderer
+✅ Gate: npm test all green + Electron window + LogPanel renders
+
+PHASE 2 — Gemini Service
+Scope: Call Gemini, list models, validate output, retry on failure.
+
+
+Build
+  ├── GeminiService: listModels, selectModel, generate, generateStructured, streamGenerate
+  ├── PromptBuilder: 8-section template builder
+  ├── Full retry + Zod validation + error wrapping
+  └── All failures logged with prompt + raw response in metadata
+Unit Tests
+  ├── listModels() parses API response; gemini-flash-lite-latest selectable
+  ├── generate() sends correct Authorization header
+  ├── Retry activates on 429 / 500; stops after 3 attempts
+  ├── generateStructured() throws ValidationError on bad JSON
+  ├── PromptBuilder: all 8 sections present in output string
+  └── API key NEVER appears in any log entry
+Manual Verification
+  └── Call listModels() with real key; model list appears in LogPanel
+✅ Gate: Tests green + live model list in LogPanel
+
+PHASE 3 — Research & Pedagogy Agents + ScriptJSON
+Scope: Topic → validated ScriptJSON with sentences array for karaoke.
+
+
+Build
+  ├── BaseAgent: withRetry + Zod + logging
+  ├── ResearchAgent + research.prompt.ts
+  ├── PedagogyAgent + pedagogy.prompt.ts
+  ├── ScriptJSON Zod schema (sentences[], duration ≥ 5, all 4 arc phases)
+  └── Step 2–4 UI: research display, script editor, scene cards
+Unit Tests (mocked Gemini)
+  ├── ResearchAgent output passes Zod schema
+  ├── PedagogyAgent: all 4 arc phases present
+  ├── All scene durations ≥ 5 s
+  ├── sentences[] has ≥ 1 item per scene
+  ├── Retry fires on schema violation; error injected into next prompt
+  └── Failed attempt logged at ERROR with full prompt + response
+Integration Test (live Gemini)
+  └── Topic "Pythagorean Theorem" → ScriptJSON saved to disk
+      Human reads and evaluates educational quality
+Manual Verification
+  ├── ScriptJSON makes educational sense for High School audience
+  └── User can edit narration text in Script Editor UI
+✅ Gate: Tests green + ScriptJSON reviewed and approved by human
+
+PHASE 4 — VisualDirector + CodeGen + CodeReview Agents
+Scope: ScriptJSON → reviewed, compiler-passing .tsx scene files.
+
+
+Build
+  ├── VisualDirectorAgent + visualDirector.prompt.ts
+  ├── ScenePlanJSON Zod schema (all enums embedded in prompt and schema)
+  ├── CodeGenAgent + codeGen.prompt.ts (MC v3 API reference + 2 full examples)
+  ├── CodeReviewAgent + codeReview.prompt.ts (tsc + Gemini fix loop)
+  ├── MCProjectManager: writes project.ts
+  └── SceneFileWriter: writes .tsx to mc-workspace/src/scenes/
+Unit Tests (mocked Gemini)
+  ├── VisualDirectorAgent: every ScriptScene has a matching ScenePlan
+  ├── All ScenePlan visualTypes are valid enum values
+  ├── CodeGenAgent: .tsx contains makeScene export + correct imports
+  ├── CodeReviewAgent: detects TS2304 missing import; Gemini adds it; re-validates
+  ├── MCProjectManager: project.ts imports all scene files
+  └── Generated .tsx passes tsc --noEmit
+Integration Test
+  └── ScriptJSON → ScenePlanJSON → .tsx files → tsc --noEmit passes for all
+Manual Verification
+  └── Open generated .tsx in VS Code. Does it look like valid MC v3 code?
+✅ Gate: Tests green + tsc passes + .tsx inspected by human
+
+PHASE 5 — MC Editor Integration (Interactive Loop)
+Scope: MC preview embedded · Monaco editor · file watcher · SceneReadBack · AI instruction bar.
+
+
+Build
+  ├── MCEditorBridge: owns MC dev server lifecycle (start/stop/restart)
+  ├── MCDevServer: spawn `npm run dev` in mc-workspace, health check
+  ├── SceneFileWatcher: chokidar → emits { sceneId, filePath } on change
+  ├── SceneReadBackAgent + sceneReadBack.prompt.ts
+  │     (reads raw .tsx → extracts semantic plan → updates ScenePlanJSON)
+  ├── MCEditorPanel UI:
+  │     MonacoPane, MCPreviewPane (BrowserView), SceneSidebar
+  │     SyncToAIButton, AIInstructionBar, Lock toggle
+  └── sourceOfTruth field updated on every state transition
+Unit Tests
+  ├── SceneFileWatcher emits event when .tsx is modified
+  ├── SceneReadBackAgent: given a known .tsx → produces correct ScenePlan summary
+  ├── MCDevServer: starts and responds to GET /health within 10 s
+  ├── AIInstructionBar: instruction text → patch prompt built correctly
+  └── Locked scene: CodeGenAgent skips it; write attempt throws LockedSceneError
+Integration Test
+  ├── Modify a .tsx in MonacoPane → MC preview hot-reloads within 2 s
+  └── Click "Sync to AI" → ScenePlan in UI updates to match file content
+Manual Verification
+  ├── Edit a circle color in Monaco → preview updates live
+  ├── Type "make it blue" in AIInstructionBar → .tsx changes → preview updates
+  ├── Click "Sync to AI" → AI understanding shown in sidebar matches your edit
+  └── Lock a scene → "Generate All" skips it
+✅ Gate: Tests green + full interactive MC loop demonstrated manually
+
+PHASE 6 — Karaoke Recording Studio
+Scope: Scene-by-scene recording with synchronized script display.
+
+
+Build
+  ├── Recorder: MediaRecorder → WAV export via IPC
+  ├── KaraokeDisplay: sentence highlighter (time-based, estimatedDuration / sentenceCount)
+  ├── VUMeter: AnalyserNode → real-time dBFS
+  ├── WaveformViewer: live + playback canvas
+  ├── Step 5 UI: scene navigator, record/playback/re-record, silence warning
+  └── WAV files saved to <workspace>/recordings/scene_XX.wav
+Unit Tests
+  ├── KaraokeDisplay: sentence index at t=0, t=half, t=full are correct
+  ├── VUMeter: returns –3 dBFS for a 0.7 amplitude signal (within ±1 dB)
+  ├── Recorder: WAV has valid RIFF header, 44100 Hz, 16-bit
+  ├── Silence detection: no audio above –40 dBFS → warning emitted after 3 s
+  └── Re-record: previous WAV deleted before new recording starts
+Manual Verification
+  ├── Record 3 sentences → highlight advances as you speak
+  ├── Re-record → previous audio gone, fresh start
+  └── Play back → WAV opens in external player and matches narration
+✅ Gate: Tests green + karaoke demo works for a 3-scene script
+
+PHASE 7 — Audio Mixing & SRT Export
+Scope: Narration + BGM + SFX mixed and balanced. .srt generated.
+
+
+Build
+  ├── Mixer: combines narration WAVs + BGM
+  ├── Ducker: BGM –20 dBFS during narration, –12 dBFS in gaps
+  ├── SRTExporter: generates .srt from ScriptJSON sentences[] + timestamps
+  ├── FFmpegExporter: wraps FFmpeg CLI calls
+  ├── Step 7 UI: BGM picker (5 bundled + custom import), level slider
+  └── Mixed output: <workspace>/audio/mixed.wav
+Unit Tests
+  ├── Ducker: narration active → BGM at –20 dBFS (±1 dB tolerance)
+  ├── Mixer: output peak ≤ –1 dBFS (no clipping)
+  ├── SRTExporter: .srt has correct sequence numbers, timestamps, text
+  └── FFmpeg command correct for each FormatPreset (checked by string match)
+Integration Test
+  └── 30 s narration WAV + BGM → mixed.wav analyzed with ffprobe
+Manual Verification
+  └── Play mixed.wav; narration clear, BGM audible but not overpowering
+✅ Gate: Tests green + mixed audio approved by ear
+
+PHASE 8 — Render & Export
+Scope: MC renders frames. FFmpeg merges everything. Output file exported.
+
+
+Build
+  ├── RenderAgent: stitches project.ts, triggers MC headless render
+  ├── MCRenderTrigger: Node headless (primary) + Puppeteer (fallback)
+  ├── Step 8–9 UI: render progress bar, format summary, open-in-explorer
+  └── FFmpeg: merge rendered frames + mixed audio → .mp4 + .webm + .srt
+Unit Tests
+  ├── RenderAgent: project.ts contains correct imports for all unlocked scenes
+  ├── MCProjectManager: canvas size matches selected VideoFormat
+  └── FFmpeg command string correct for mp4 and webm for each FormatPreset
+Integration Test
+  └── Pre-built .tsx scene → MC renders → .mp4 plays in VLC
+Manual Verification
+  ├── Correct resolution (e.g. 1920×1080 for YouTube)
+  ├── Audio and video in sync
+  └── .srt file opens in subtitle editor
+✅ Gate: Tests green + .mp4 plays correctly
+
+PHASE 9 — Full Pipeline Integration & Acceptance
+Scope: All phases wired. 9-step wizard UI. System tests against SRS.
+
+
+Build
+  ├── PipelineOrchestrator: connects all agents, emits step events via IPC
+  ├── StepWizard: progress, status badges, error recovery per step
+  ├── Project save/load: workspace folder serialization
+  └── Final polish: transitions, loading states, error dialogs
+System Tests (SRS coverage)
+  ├── FR-A02: each format preset → correct resolution in output file
+  ├── FR-B02: injected bad JSON → retry fires → valid output in log
+  ├── FR-D02: karaoke highlight timing at correct sentence offsets
+  ├── FR-E07: user edits .tsx → Sync to AI → ScenePlan updated correctly
+  ├── FR-E11: AI instruction → reads file from disk (not cache) → confirmed by log
+  ├── FR-F02: ducking confirmed via ffprobe level analysis
+  ├── FR-G05: .srt file present, correct sequence
+  └── NFR-01: each agent call benchmarked; p95 ≤ 30 s
+Acceptance Walkthrough (manual)
+  └── Full 3-min "Square Root" video for YouTube format:
+      Topic → Research → Script edit → Record narration (karaoke) →
+      MC editor (edit one scene + sync to AI) → Mix audio → Render → Export
+      Target: ≤ 45 min total, no manual code edits outside MC editor
+✅ Gate: All system tests green + acceptance walkthrough complete
+
+7. VERIFICATION & VALIDATION MATRIX
+Phase	Left (Definition)	Right (Verification)	Gate
+1 — Foundation	Monorepo + Logger SRS	Compile + Electron + LogPanel	✅
+2 — Gemini Service	GeminiService spec	Unit + live model list	✅
+3 — Research + Script	Agent specs + ScriptJSON	Unit + integration + human read	✅
+4 — Code Generation	CodeGen + Review specs	Unit + tsc integration	✅
+5 — MC Editor Loop	MC interactive loop spec	Unit + manual MC demo	✅
+6 — Karaoke Studio	Recording studio spec	Unit + manual karaoke	✅
+7 — Audio + SRT	Mixer + SRT spec	Unit + integration + ear	✅
+8 — Render + Export	Render + FFmpeg spec	Unit + integration + .mp4	✅
+9 — Full Pipeline	SRS acceptance criteria	System tests + walkthrough	✅
