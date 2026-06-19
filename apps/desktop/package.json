@@ -12,13 +12,14 @@
   "dependencies": {
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
+    "gemini-service": "*",
+    "pipeline": "*",
     "lucide-react": "^1.21.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "tailwind-merge": "^3.6.0",
     "zustand": "^5.0.14",
-    "shared": "*",
-    "gemini-service": "*"
+    "shared": "*"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

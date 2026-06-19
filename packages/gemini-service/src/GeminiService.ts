@@ -4,7 +4,7 @@ import { globalLogger } from "shared";
 
 export class GeminiService {
   private ai: GoogleGenAI;
-  private defaultModel = "gemini-2.5-flash";
+  private defaultModel = "gemini-flash-lite-latest";
 
   constructor(apiKey?: string) {
     const envKey = typeof process !== "undefined" && process.env ? process.env.GEMINI_API_KEY : undefined;

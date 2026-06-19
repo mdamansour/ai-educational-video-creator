@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@google/genai": "latest",
-    "zod": "latest",
-    "shared": "*"
+    "shared": "*",
+    "zod": "^4.4.3"
   }
 }

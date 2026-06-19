@@ -2,6 +2,7 @@ import { LogPanel } from "./components/LogPanel";
 import { useLogStore } from "./store/logStore";
 import { GeminiService } from "gemini-service";
 import { globalLogger } from "shared";
+import { ResearchAgent, PedagogyAgent } from "pipeline";
 
 function App() {
   const { addLog } = useLogStore();
@@ -15,6 +16,36 @@ function App() {
       message: "Test log message from App component",
       metadata: { action: "button_click" },
     });
+  };
+
+  const testPhase3Pipeline = async () => {
+    globalLogger.info("ReactApp", "Starting Phase 3 Pipeline Test...");
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) throw new Error("Missing VITE_GEMINI_API_KEY");
+
+      const researchAgent = new ResearchAgent(apiKey);
+      const pedagogyAgent = new PedagogyAgent(apiKey);
+
+      const topic = "Pythagorean Theorem";
+      const audienceLevel = "high_school";
+
+      globalLogger.info("ReactApp", `Running ResearchAgent on topic: ${topic}`);
+      const research = await researchAgent.execute({ topic, audienceLevel });
+
+      globalLogger.info("ReactApp", "Research complete. Running PedagogyAgent...");
+      const script = await pedagogyAgent.execute({
+        topic,
+        audienceLevel,
+        videoFormat: { width: 1920, height: 1080, fps: 60 },
+        totalEstimatedDuration: 60,
+        research
+      });
+
+      globalLogger.info("ReactApp", "Phase 3 Pipeline Success! Final Script generated.", { script });
+    } catch (e) {
+      globalLogger.error("ReactApp", "Pipeline failed", { error: String(e) });
+    }
   };
 
   return (
@@ -42,6 +73,13 @@ function App() {
             className="px-4 py-2 bg-purple-600 text-white rounded shadow hover:bg-purple-700 transition"
           >
             Test Gemini (List Models)
+          </button>
+
+          <button 
+            onClick={testPhase3Pipeline}
+            className="px-4 py-2 bg-green-600 text-white rounded shadow hover:bg-green-700 transition"
+          >
+            Test Pipeline (Phase 3)
           </button>
         </div>
       </div>
